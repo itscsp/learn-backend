@@ -1,7 +1,7 @@
 {
-  "name": "myproject",
+  "name": "Learn Backend",
   "version": "1.0.0",
-  "description": "My backend learning",
+  "description": "My backend project video platform",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
