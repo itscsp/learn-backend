@@ -2,7 +2,7 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { User } from "../models/user.model.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
-import {ApiResponse} from "../utils/ApiResponse.js"
+import { ApiResponse } from "../utils/ApiResponse.js";
 
 const registerUser = asyncHandler(async (req, res) => {
   // Step 1: get user details from user
@@ -17,7 +17,6 @@ const registerUser = asyncHandler(async (req, res) => {
 
   /** Step 1 */
   const { username, email, fullName, password } = req.body;
-  console.log("email: ", email);
 
   /** Step 2 */
 
@@ -32,7 +31,7 @@ const registerUser = asyncHandler(async (req, res) => {
   }
 
   /** Step 3 */
-  const existingUser = User.findOne({
+  const existingUser = await User.findOne({
     $or: [{ email }, { username }],
   });
 
@@ -56,6 +55,7 @@ const registerUser = asyncHandler(async (req, res) => {
   if (!avatar) {
     throw new ApiError(400, "Avatar is required");
   }
+  
 
   /** step 6 */
 
@@ -79,10 +79,9 @@ const registerUser = asyncHandler(async (req, res) => {
     throw new ApiError(500, "Something went wrong creating user");
   }
 
-  return res.status(201).json(
-    new ApiResponse(200, createUserData,"User registered successfully")
-  )
-  
+  return res
+    .status(201)
+    .json(new ApiResponse(200, createUserData, "User registered successfully"));
 });
 
 export { registerUser };
