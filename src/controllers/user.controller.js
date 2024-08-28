@@ -3,13 +3,14 @@ import { ApiError } from "../utils/ApiError.js";
 import { User } from "../models/user.model.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
+import jwt from  "jsonwebtoken"
 
 const options = {
   httpOnly: true,
   secure: true,
 };
 
-const generateAccessAndRefereshTokens = async (userId) => {
+const generateAccessAndRefreshTokens = async (userId) => {
   try {
     const user = await User.findById(userId); // I get Issue becouse of not adding "await"
 
@@ -29,7 +30,7 @@ const generateAccessAndRefereshTokens = async (userId) => {
     // console.error("Error generating access token: ", error);
     throw new ApiError(
       500,
-      "Something went wrong while generation referesh and access token"
+      "Something went wrong while generation refresh and access token"
     );
   }
 };
@@ -155,7 +156,7 @@ const loginUser = asyncHandler(async (req, res) => {
     throw new ApiError(401, "Invalid user credentials");
   }
 
-  const { accessToken, refreshToken } = await generateAccessAndRefereshTokens(
+  const { accessToken, refreshToken } = await generateAccessAndRefreshTokens(
     user._id
   );
 
@@ -166,7 +167,7 @@ const loginUser = asyncHandler(async (req, res) => {
   return res
     .status(200)
     .cookie("accessToken", accessToken, options)
-    .cookie("refereshToken", refreshToken, options)
+    .cookie("refreshToken", refreshToken, options)
     .json(
       new ApiResponse(
         200,
@@ -186,7 +187,7 @@ const logoutUser = asyncHandler(async (req, res, next) => {
     req.user._id,
     {
       $set: {
-        refereshToken: undefined,
+        refreshToken: undefined,
       },
     },
     {
@@ -202,10 +203,9 @@ const logoutUser = asyncHandler(async (req, res, next) => {
 });
 
 const refreshAccessToken = asyncHandler(async (req, res) => {
-  const incomingRefreshToken =
-    req.cookie.refereshToken || req.body.refereshToken;
+  const incomingRefreshToken = req.cookies.refreshToken || req.body.refreshToken;
 
-  if (incomingRefreshToken) {
+  if (!incomingRefreshToken) {
     throw new ApiError(401, "unauthorized request");
   }
 
@@ -226,7 +226,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
     }
 
     const { accessToken, newRefreshToken } =
-      await generateAccessAndRefereshTokens(user._id);
+    await generateAccessAndRefreshTokens(user._id);
 
     return res
       .status(200)
