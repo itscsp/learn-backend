@@ -4,22 +4,32 @@ import { User } from "../models/user.model.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 
-const generateAccessAndRefereshTokens = async(userId) => {
-  try{
-    const user = User.findById(userId)
+const generateAccessAndRefereshTokens = async (userId) => {
+  try {
+    const user = await User.findById(userId); // I get Issue becouse of not adding "await"
 
-    const accessToken = user.generateAccessToken()
-    const refereshToken =  user.generateRefreshToken()
+    // console.log("Before User in user contriller - accessToken:")
+    
+    const accessToken = user.generateAccessToken();
+    // console.log("User in user contriller - accessToken: ", accessToken)
+    const refreshToken = user.generateRefreshToken();
+    
+    // console.log("User in user contriller - refreshToken: ", refreshToken)
 
-    user.refereshToken = refereshToken
-    await user.save({validateBeforeSave: false})
+    
+    user.refreshToken = refreshToken;
+    await user.save({ validateBeforeSave: false });
 
-    return {accessToken, refereshToken}
-
+    return { accessToken, refreshToken };
+    
   } catch (error) {
-    throw new ApiError(500, "Something went wrong while generation referesh and access token")
+    // console.error("Error generating access token: ", error);
+    throw new ApiError(
+      500,
+      "Something went wrong while generation referesh and access token",
+    );
   }
-}
+};
 
 const registerUser = asyncHandler(async (req, res) => {
   // Step 1: get user details from user
@@ -122,72 +132,78 @@ const loginUser = asyncHandler(async (req, res) => {
   // Step 5: Generate access and refresh token
   // Step 6: Send Cookie
 
-  const {email,username,password} = req.body
-
-  if(!username || !email) {
-    throw new ApiError(400, "username or email is required")
+  const { username, password } = req.body;
+  // console.log(username);
+  if (!username) {
+    throw new ApiError(400, "username or email is required");
   }
 
-  const user = await User.findOne({
-    $or: [{username}, {email}]
-  })
+  const user = await User.findOne({username});
 
-  if(!user){
-    throw new ApiError(404, "User does not exists")
+  // console.log(user);
+
+  if (!user) {
+    throw new ApiError(404, "User does not exists");
   }
 
-  const isPasswordValid = await user.isPasswordCorrect(password)
+  const isPasswordValid = await user.isPasswordCorrect(password);
 
-  if(!isPasswordValid) {
-    throw new ApiError(401, "Invalid user credentials")
+  if (!isPasswordValid) {
+    throw new ApiError(401, "Invalid user credentials");
   }
 
-  const {accessToken, refereshToken} = await generateAccessAndRefereshTokens(user._id)
+  const { accessToken, refreshToken } = await generateAccessAndRefereshTokens(user._id);
 
-  const loggedInUser = await User.findById(user._if).select("-password -refreshToken")
+  const loggedInUser = await User.findById(user._id).select(
+    "-password -refreshToken"
+  );
 
   const options = {
     httpOnly: true,
-    secure:true
-  }
+    secure: true,
+  };
 
-  return res.status(200)
-  .cookie("accessToken", accessToken, options)
-  .cookie("refereshToken", refereshToken, options)
-  .json(
-    new ApiResponse(
-      200,
-      {
-        user: loggedInUser, accessToken, refereshToken
-      },
-      
+  return res
+    .status(200)
+    .cookie("accessToken", accessToken, options)
+    .cookie("refereshToken", refreshToken, options)
+    .json(
+      new ApiResponse(
+        200,
+        {
+          user: loggedInUser,
+          accessToken,
+          refreshToken,
+        },
+
         "User logged in Successfully"
-      
-    )
-  )
-})
+      )
+    );
+});
 
-const logoutUser = asyncHandler(async(req, res, next) => {
+const logoutUser = asyncHandler(async (req, res, next) => {
   await User.findByIdAndUpdate(
-    req.user._id, 
+    req.user._id,
     {
       $set: {
-        refereshToken:undefined
-      }
+        refereshToken: undefined,
+      },
     },
     {
-      new:true
+      new: true,
     }
-  ) 
+  );
 
   const options = {
     httpOnly: true,
-    secure:true
-  }
+    secure: true,
+  };
 
-  return res.status(200).clearCookie("accessToken").clearCookie("refreshToken").json(new ApiResponse(200, {}, "User logged Out"))
-  
-
-})
+  return res
+    .status(200)
+    .clearCookie("accessToken")
+    .clearCookie("refreshToken")
+    .json(new ApiResponse(200, {}, "User logged Out"));
+});
 
 export { registerUser, loginUser, logoutUser };
