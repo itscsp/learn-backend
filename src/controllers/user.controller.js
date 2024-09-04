@@ -4,6 +4,7 @@ import { User } from "../models/user.model.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import jwt from "jsonwebtoken";
+import { subscription } from "../models/subscription.model.js";
 
 const options = {
   httpOnly: true,
@@ -266,7 +267,7 @@ const changeCurrentPassword = asyncHandler(async (req, res) => {
 const getCurrentuser = asyncHandler(async (req, res) => {
   return res
     .status(200)
-    .json(200, req.user, "Current user fetched successfully");
+    .json(ApiResponse(200, req.user, "Current user fetched successfully"));
 });
 
 const updateAccountDetails = asyncHandler(async (req, res) => {
@@ -348,6 +349,84 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
     );
 });
 
+const getUserChannelImage = asyncHandler(async (req, res) => {
+
+  /**
+   * Get user profile with Subscription and subscribers details
+   * Here we writing aggregation pipeline to combine two table and get the length of subscribers
+   */
+
+  const {username} = req.params
+
+  if(!username?.trim()){
+    throw new ApiError(400, "Username is missing")
+  }
+
+  const channel = await User.aggregate([
+    {
+      $match: {
+        username: username?.toLowerCase()
+      }
+    },
+    {
+      $lookup:{
+        from: "subscriptions",
+        localField: "_id",
+        foreignField: "channel",
+        as: "subscribers"
+      }
+    },
+    {
+      $lookup:{
+        from: "subscriptions",
+        localField: "_id",
+        foreignField: "subscriber",
+        as:"subscribedTo"
+      }
+    },
+    {
+      $addFields: {
+        subscribersCount: {
+          $size: "$subscribers"
+        },
+        channelsSubscribedToCount: {
+          $size: "$subscribedTo"
+        },
+        isSubscribed: {
+          $cond: {
+            if:{$in: [req.user?._id, "$subscribers.subscriber"]},
+            then:true,
+            else:false
+          } 
+        }
+      }
+    },
+    {
+      $project: {
+        fullName:1,
+        username: 1,
+        subscribersCount:1,
+        channelsSubscribedToCount:1,
+        isSubscribed:1,
+        avatar:1,
+        coverImage:1,
+        email:1,        
+      }
+    }
+  ])
+
+  if(!channel?.length){
+    throw new ApiError(404, "Channel does not exists")
+  }
+
+  return res
+  .status(200)
+  .json(
+    new ApiResponse(200, channel[0], "User channel fetched successfully")
+  )
+
+})
+
 export {
   registerUser,
   loginUser,
@@ -358,4 +437,5 @@ export {
   updateAccountDetails,
   updateUserAvatar,
   updateUserCoverImage,
+  getUserChannelImage,
 };
